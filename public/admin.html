@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOHO 管理後台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+        }
+        /* Tab 選取樣式 */
+        
+        .tab-active {
+            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+            color: white;
+            box-shadow: 0 16px 30px -14px rgba(14, 165, 233, 0.65);
+        }
+        /* 卡片毛玻璃效果 */
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            box-shadow: 0 20px 50px -28px rgba(15, 23, 42, 0.22);
+        }
+        /* 圖片風格的輸入框：淺灰背景、大圓角 */
+        
+        .soft-input-new {
+            background: #f8fafc;
+            border: 1px solid transparent;
+            border-radius: 1.5rem;
+            padding: 1rem 1.25rem;
+            font-weight: 500;
+            color: #334155;
+            transition: all 0.2s ease;
+        }
+        
+        .soft-input-new:focus {
+            outline: none;
+            background: #ffffff;
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.1);
+        }
+        /* 標題背景的藍色暈染 */
+        
+        .title-glow {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .title-glow::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120%;
+            height: 140%;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
+            z-index: -1;
+            filter: blur(10px);
+        }
+        /* 隱藏滾動條 */
+        
+         ::-webkit-scrollbar {
+            width: 0px;
+            height: 0px;
+        }
+        
+        .fade-up {
+            animation: fadeUp .25s ease-out both;
+        }
+        
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100">
+
+    <div class="max-w-6xl mx-auto relative z-10 p-4">
+        <header class="flex justify-between items-end mb-10 px-6 py-6 glass-card rounded-[2rem]">
+            <div class="flex flex-col items-start">
+                <h1 class="text-4xl font-black text-slate-800 leading-tight">管理員後台</h1>
+                <p class="text-sky-500 font-black tracking-[0.2em] text-xs mt-2 uppercase opacity-90">
+                    <i class="fas fa-chart-line mr-2"></i>View All Bookings / 檢視所有訂房紀錄
+                </p>
+
+                <div class="flex gap-4 mt-6">
+                    <button id="tab-dashboard" onclick="switchTab('dashboard')" class="px-8 py-2.5 rounded-2xl font-bold transition-all duration-300 bg-white/70 text-slate-400 hover:bg-sky-50 border border-white/40">
+                        儀表板
+                    </button>
+                    <button id="tab-orders" onclick="switchTab('orders')" class="bg-white/70 text-slate-400 px-8 py-2.5 rounded-2xl font-bold hover:bg-sky-50 transition-all duration-300 border border-white/40">
+                        訂單管理
+                    </button>
+                    <button id="tab-rooms" onclick="switchTab('rooms')" class="bg-white/70 text-slate-400 px-8 py-2.5 rounded-2xl font-bold hover:bg-sky-50 transition-all duration-300 border border-white/40">
+                        房型管理
+                    </button>
+                </div>
+            </div>
+
+            <button onclick="logout()" class="px-6 py-3 bg-white/80 text-rose-500 font-bold rounded-2xl shadow-sm hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 border border-white/50 backdrop-blur-md">
+                <i class="fas fa-sign-out-alt"></i> 登出
+            </button>
+        </header>
+
+        <div id="section-dashboard" class="hidden fade-up">
+            <div class="grid md:grid-cols-3 gap-6 mb-8">
+                <div class="glass-card rounded-[2rem] p-6">
+                    <p class="text-slate-400 font-bold text-sm">總訂單數</p>
+                    <h3 id="stat-orders" class="text-3xl font-black text-slate-800 mt-2">0</h3>
+                </div>
+                <div class="glass-card rounded-[2rem] p-6">
+                    <p class="text-slate-400 font-bold text-sm">總營收</p>
+                    <h3 id="stat-revenue" class="text-3xl font-black text-slate-800 mt-2">$0</h3>
+                </div>
+                <div class="glass-card rounded-[2rem] p-6">
+                    <p class="text-slate-400 font-bold text-sm">房型數量</p>
+                    <h3 id="stat-rooms" class="text-3xl font-black text-slate-800 mt-2">0</h3>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6 mb-10">
+                <div class="glass-card rounded-[2.5rem] p-6">
+                    <h3 class="font-black text-slate-800 text-lg mb-4">每月訂單數量</h3>
+                    <canvas id="ordersChart"></canvas>
+                </div>
+                <div class="glass-card rounded-[2.5rem] p-6">
+                    <h3 class="font-black text-slate-800 text-lg mb-4">每月營收</h3>
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="section-orders" class="hidden glass-card rounded-[2.5rem] overflow-hidden fade-up">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-sky-400/90 text-white backdrop-blur-md">
+                        <tr>
+                            <th class="p-6 font-black text-xl tracking-wider">訂房日期</th>
+                            <th class="p-6 font-black text-xl tracking-wider">房型名稱</th>
+                            <th class="p-6 font-black text-xl tracking-wider">客人姓名</th>
+                            <th class="p-6 font-black text-xl tracking-wider">手機號碼</th>
+                            <th class="p-6 font-black text-xl tracking-wider">總金額</th>
+                            <th class="p-6 font-black text-xl tracking-wider text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-orders-list" class="divide-y divide-slate-100/70 bg-white/10">
+                    </tbody>
+                </table>
+            </div>
+            <div id="no-orders" class="hidden py-24 text-center">
+                <i class="fas fa-calendar-times text-slate-200 text-7xl mb-4"></i>
+                <p class="text-slate-400 font-bold text-lg">目前尚無任何訂房紀錄</p>
+            </div>
+        </div>
+
+        <div id="section-rooms" class="hidden fade-up">
+            <div class="flex justify-between items-center mb-8 px-4">
+                <p class="text-slate-500 font-bold">目前架上房型：<span id="room-count" class="text-sky-500 font-black">0</span> 間</p>
+                <button onclick="openRoomModal()" class="bg-sky-500 text-white px-8 py-3.5 rounded-2xl font-black shadow-lg shadow-sky-200 hover:bg-sky-600 transition-all duration-300">
+                    <i class="fas fa-plus mr-2"></i> 新增房型
+                </button>
+            </div>
+            <div id="admin-rooms-list" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            </div>
+        </div>
+    </div>
+
+    <div id="room-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-xl rounded-[3rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh] border border-white/20">
+
+            <div class="text-center mb-10">
+                <div class="title-glow">
+                    <h2 id="modal-title" class="text-3xl font-black text-slate-800 flex items-center justify-center gap-3">
+                        新增精選房型
+                    </h2>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <input type="hidden" id="room-id">
+
+                <div>
+                    <label class="block text-slate-400 font-bold mb-2 ml-2">房型名稱</label>
+                    <input type="text" id="room-name" placeholder="例如：雲朵漫步雙人房" class="soft-input-new w-full">
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 font-bold mb-2 ml-2">房型狀態</label>
+                    <select id="room-status" class="soft-input-new w-full appearance-none bg-no-repeat bg-[right_1.5rem_center] bg-[length:1em_1em]" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23CBD5E1%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22/%3E%3C/svg%3E');">
+                        <option value="available">🟢 正常開放</option>
+                        <option value="maintenance">🛠 維修中 (暫不開放預訂)</option>
+                    </select>
+                </div>
+
+                <div id="maintenance-dates" class="hidden grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sky-500 text-xs font-black mb-2 ml-2 uppercase">維修開始日期</label>
+                        <input type="date" id="m-start" class="soft-input-new w-full">
+                    </div>
+                    <div>
+                        <label class="block text-sky-500 text-xs font-black mb-2 ml-2 uppercase">維修結束日期</label>
+                        <input type="date" id="m-end" class="soft-input-new w-full">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 font-bold mb-2 ml-2">房型說明 (特色亮點)</label>
+                    <textarea id="room-desc" rows="3" placeholder="例如：適合情侶慶生、網美必住落地窗..." class="soft-input-new w-full resize-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-slate-400 font-bold mb-2 ml-2">每晚價格</label>
+                        <input type="number" id="room-price" placeholder="3200" class="soft-input-new w-full">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 font-bold mb-2 ml-2">房間總數</label>
+                        <input type="number" id="room-qty" placeholder="5" class="soft-input-new w-full">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 font-bold mb-2 ml-2">圖片 URL</label>
+                    <input type="text" id="room-image" placeholder="請輸入圖片連結" class="soft-input-new w-full text-sm">
+                </div>
+            </div>
+
+            <div class="flex gap-4 mt-12">
+                <button onclick="closeRoomModal()" class="flex-1 py-4 bg-slate-100 text-slate-400 font-bold rounded-2xl hover:bg-slate-200 transition-all">取消</button>
+                <button onclick="saveRoom()" class="flex-1 py-4 bg-sky-500 text-white font-black rounded-2xl shadow-lg shadow-sky-200 hover:bg-sky-600 transition-all">儲存變更</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin + "/api";
+
+        let ordersChart = null;
+        let revenueChart = null;
+
+        // --- 輔助功能：登入檢查 ---
+        if (!localStorage.getItem('adminToken')) {
+            window.location.href = 'index.html';
+        }
+
+        // 房型維修日期區塊顯示切換
+        document.getElementById('room-status').addEventListener('change', function() {
+            const dateSection = document.getElementById('maintenance-dates');
+            dateSection.classList.toggle('hidden', this.value !== 'maintenance');
+        });
+
+        // --- 核心功能：頁籤切換 ---
+        function switchTab(tab) {
+            const tabs = ['dashboard', 'orders', 'rooms'];
+            const buttons = {
+                dashboard: document.getElementById('tab-dashboard'),
+                orders: document.getElementById('tab-orders'),
+                rooms: document.getElementById('tab-rooms')
+            };
+            const sections = {
+                dashboard: document.getElementById('section-dashboard'),
+                orders: document.getElementById('section-orders'),
+                rooms: document.getElementById('section-rooms')
+            };
+
+            // 重置樣式
+            tabs.forEach(t => {
+                buttons[t].className = 'bg-white/70 text-slate-400 px-8 py-2.5 rounded-2xl font-bold hover:bg-sky-50 transition-all duration-300 border border-white/40';
+                sections[t].classList.add('hidden');
+            });
+
+            // 啟用所選頁籤
+            buttons[tab].className = 'tab-active px-8 py-2.5 rounded-2xl font-bold transition-all duration-300';
+            sections[tab].classList.remove('hidden');
+
+            // 載入資料
+            if (tab === 'dashboard') loadDashboard();
+            else if (tab === 'orders') fetchAllOrders();
+            else fetchAllRooms();
+        }
+
+        // --- 儀表板資料邏輯 ---
+        async function loadDashboard() {
+            try {
+                const [ordersRes, roomsRes] = await Promise.all([
+                    fetch(`${API_URL}/admin/orders`),
+                    fetch(`${API_URL}/admin/rooms`)
+                ]);
+
+                const orders = await ordersRes.json();
+                const rooms = await roomsRes.json();
+
+                document.getElementById('stat-orders').innerText = orders.length;
+                document.getElementById('stat-rooms').innerText = rooms.length;
+
+                const totalRevenue = orders.reduce((sum, o) => sum + (parseInt(o.totalPrice) || 0), 0);
+                document.getElementById('stat-revenue').innerText = `$${totalRevenue.toLocaleString()}`;
+
+                // 處理圖表資料 - 每月訂單
+                const monthlyOrderMap = {};
+                orders.forEach(o => {
+                    const month = (o.checkIn || '').slice(0, 7) || '未知';
+                    monthlyOrderMap[month] = (monthlyOrderMap[month] || 0) + 1;
+                });
+
+                const orderLabels = Object.keys(monthlyOrderMap).sort();
+                const orderValues = orderLabels.map(k => monthlyOrderMap[k]);
+
+                if (ordersChart) ordersChart.destroy();
+                ordersChart = new Chart(document.getElementById('ordersChart'), {
+                    type: 'line',
+                    data: {
+                        labels: orderLabels,
+                        datasets: [{
+                            label: '訂單數量',
+                            data: orderValues,
+                            borderColor: '#0ea5e9',
+                            backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 處理圖表資料 - 每月營收
+                const monthlyRevenueMap = {};
+                orders.forEach(o => {
+                    const month = (o.checkIn || '').slice(0, 7) || '未知';
+                    monthlyRevenueMap[month] = (monthlyRevenueMap[month] || 0) + (parseInt(o.totalPrice) || 0);
+                });
+
+                const revenueLabels = Object.keys(monthlyRevenueMap).sort();
+                const revenueValues = revenueLabels.map(k => monthlyRevenueMap[k]);
+
+                if (revenueChart) revenueChart.destroy();
+                revenueChart = new Chart(document.getElementById('revenueChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: revenueLabels,
+                        datasets: [{
+                            label: '營收 ($)',
+                            data: revenueValues,
+                            backgroundColor: 'rgba(56, 189, 248, 0.6)',
+                            borderColor: '#0ea5e9',
+                            borderWidth: 1,
+                            borderRadius: 10
+                        }]
+                    },
+                    options: {
+                        responsive: true
+                    }
+                });
+            } catch (err) {
+                console.error("Dashboard 載入失敗", err);
+            }
+        }
+
+        // --- 訂單管理邏輯 ---
+        async function fetchAllOrders() {
+            try {
+                const res = await fetch(`${API_URL}/admin/orders`);
+                const orders = await res.json();
+                const list = document.getElementById('admin-orders-list');
+                const noOrders = document.getElementById('no-orders');
+
+                if (orders.length === 0) {
+                    list.innerHTML = "";
+                    noOrders.classList.remove('hidden');
+                    return;
+                }
+                noOrders.classList.add('hidden');
+                list.innerHTML = orders.map(o => `
+                    <tr class="hover:bg-sky-50/40 transition-colors">
+                        <td class="p-6">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-slate-700 text-lg">${o.checkIn}</span>
+                                <span class="text-xs text-slate-400 font-bold uppercase">TO ${o.checkOut}</span>
+                            </div>
+                        </td>
+                        <td class="p-6 font-black text-slate-800 text-lg">${o.roomName}</td>
+                        <td class="p-6">
+                            <span class="bg-sky-50 text-sky-600 px-4 py-1.5 rounded-xl font-bold border border-sky-100">${o.customerName}</span>
+                        </td>
+                        <td class="p-6 text-slate-500 font-bold font-mono">${o.phone}</td>
+                        <td class="p-6 font-black text-sky-600 text-2xl">$${o.totalPrice}</td>
+                        <td class="p-6 text-center">
+                            <button onclick="deleteOrder('${o.id}')" class="w-12 h-12 inline-flex items-center justify-center bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all border border-rose-100">
+                                <i class="fas fa-trash-alt text-lg"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error("訂單載入失敗");
+            }
+        }
+
+        async function deleteOrder(id) {
+            if (!confirm('確定要永久刪除這筆訂單嗎？')) return;
+            try {
+                await fetch(`${API_URL}/orders/cancel/${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customerName: 'ADMIN_FORCE'
+                    })
+                });
+                fetchAllOrders();
+            } catch (err) {
+                alert('刪除失敗');
+            }
+        }
+
+        // --- 房型管理邏輯 ---
+        async function fetchAllRooms() {
+            try {
+                const res = await fetch(`${API_URL}/admin/rooms`);
+                const rooms = await res.json();
+                const list = document.getElementById('admin-rooms-list');
+                document.getElementById('room-count').innerText = rooms.length;
+
+                list.innerHTML = rooms.map(r => {
+                    let statusTag = `<span class="bg-emerald-100 text-emerald-600 text-[10px] px-2 py-0.5 rounded-md font-black border border-emerald-200">🟢 開放中</span>`;
+                    if (r.status === 'maintenance') {
+                        statusTag = `<span class="bg-amber-100 text-amber-600 text-[10px] px-2 py-0.5 rounded-md font-black border border-amber-200">🛠 維修: ${r.maintenanceStart || ''}~${r.maintenanceEnd || ''}</span>`;
+                    }
+
+                    return `
+                        <div class="bg-white/80 backdrop-blur-xl p-6 rounded-[2.5rem] shadow-sm border border-white/40 flex gap-6 items-center hover:shadow-xl hover:shadow-sky-200/40 transition-all group">
+                            <div class="relative overflow-hidden rounded-[2rem] w-32 h-32 shrink-0">
+                                <img src="${r.imageUrl || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${r.status === 'maintenance' ? 'grayscale opacity-50' : ''}">
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h3 class="text-xl font-black text-slate-800">${r.name}</h3>
+                                    ${statusTag}
+                                </div>
+                                <p class="text-slate-400 text-sm font-bold mt-1 line-clamp-1">${r.description || '點擊編輯新增說明...'}</p>
+                                <div class="flex items-center gap-4 mt-3">
+                                    <span class="text-sky-500 font-black text-xl">$${r.price}</span>
+                                    <span class="bg-slate-50 text-slate-400 text-xs px-3 py-1 rounded-full font-bold border border-slate-100">庫存 ${r.quantity || 0} 間</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <button onclick='editRoom(${JSON.stringify(r)})' class="w-10 h-10 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-500 hover:text-white transition-all flex items-center justify-center border border-sky-100">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="deleteRoom('${r.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-rose-100">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error("房型載入失敗");
+            }
+        }
+
+        function openRoomModal() {
+            document.getElementById('modal-title').innerText = " 新增精選房型";
+            document.getElementById('room-id').value = "";
+            document.getElementById('room-name').value = "";
+            document.getElementById('room-status').value = "available";
+            document.getElementById('maintenance-dates').classList.add('hidden');
+            document.getElementById('m-start').value = "";
+            document.getElementById('m-end').value = "";
+            document.getElementById('room-desc').value = "";
+            document.getElementById('room-price').value = "";
+            document.getElementById('room-qty').value = "";
+            document.getElementById('room-image').value = "";
+            document.getElementById('room-modal').classList.remove('hidden');
+        }
+
+        function editRoom(r) {
+            document.getElementById('modal-title').innerText = "📝 編輯房型資訊";
+            document.getElementById('room-id').value = r.id;
+            document.getElementById('room-name').value = r.name;
+            document.getElementById('room-status').value = r.status || "available";
+            document.getElementById('maintenance-dates').classList.toggle('hidden', r.status !== 'maintenance');
+            document.getElementById('m-start').value = r.maintenanceStart || "";
+            document.getElementById('m-end').value = r.maintenanceEnd || "";
+            document.getElementById('room-desc').value = r.description || "";
+            document.getElementById('room-price').value = r.price;
+            document.getElementById('room-qty').value = r.quantity;
+            document.getElementById('room-image').value = r.imageUrl || "";
+            document.getElementById('room-modal').classList.remove('hidden');
+        }
+
+        async function saveRoom() {
+            const data = {
+                id: document.getElementById('room-id').value,
+                name: document.getElementById('room-name').value,
+                status: document.getElementById('room-status').value,
+                maintenanceStart: document.getElementById('m-start').value,
+                maintenanceEnd: document.getElementById('m-end').value,
+                description: document.getElementById('room-desc').value,
+                price: parseInt(document.getElementById('room-price').value),
+                quantity: parseInt(document.getElementById('room-qty').value),
+                imageUrl: document.getElementById('room-image').value
+            };
+
+            if (!data.name || isNaN(data.price)) return alert('房型名稱與價格為必填！');
+
+            try {
+                await fetch(`${API_URL}/admin/rooms`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                closeRoomModal();
+                fetchAllRooms();
+            } catch (err) {
+                alert('儲存失敗');
+            }
+        }
+
+        async function deleteRoom(id) {
+            if (!confirm('確定刪除該房型？')) return;
+            await fetch(`${API_URL}/admin/rooms/${id}`, {
+                method: 'DELETE'
+            });
+            fetchAllRooms();
+        }
+
+        function closeRoomModal() {
+            document.getElementById('room-modal').classList.add('hidden');
+        }
+
+        function logout() {
+            localStorage.removeItem('adminToken');
+            window.location.href = 'index.html';
+        }
+
+        // 初始化頁面
+        switchTab('dashboard');
+    </script>
+</body>
+
+</html>

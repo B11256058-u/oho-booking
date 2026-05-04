@@ -1,0 +1,13 @@
+# 忽略 Node.js 套件資料夾 (體積太大，不需上傳)
+node_modules/
+
+# 忽略 Firebase 私密金鑰 (絕對不能上傳到 GitHub，否則資料庫會外洩)
+serviceAccountKey.json
+
+# 忽略系統產生的日誌檔案
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 忽略環境變數設定檔 (如果你之後有用到 .env)
+.env

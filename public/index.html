@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>HOHO BOOKING</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .cloud-card {
+            border-radius: 2.5rem;
+            transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background-color: white;
+        }
+        
+        .cloud-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+        }
+        
+         ::-webkit-scrollbar {
+            width: 0px;
+        }
+        
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 min-h-screen font-sans">
+    <nav class="p-6 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center bg-white/80 backdrop-blur-md p-5 rounded-[2rem] shadow-sm border border-white/20">
+            <h1 class="text-2xl font-black text-sky-600 cursor-pointer" onclick="showHome()">HOHO BOOKING</h1>
+            <div class="flex items-center gap-4">
+                <button onclick="showOrderQuery()" class="font-bold text-slate-500 px-6 py-2 bg-slate-100 rounded-xl hover:bg-sky-500 hover:text-white transition-all duration-300">我的訂單</button>
+                <button onclick="toggleModal('login-modal', true)" class="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-sky-500 transition-colors">
+                    <i class="fas fa-user-shield text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto p-6">
+        <section id="view-home">
+            <header class="mb-16 text-center">
+                <h2 class="text-5xl font-black text-slate-800 mb-8">預訂您的舒適空間</h2>
+                <div class="inline-flex flex-col md:flex-row items-center gap-8 bg-white p-10 rounded-[3rem] shadow-xl border border-slate-200/50">
+                    <div class="flex flex-col items-start px-4">
+                        <label class="text-xs font-black text-sky-400 mb-2 tracking-widest">入住 CHECK-IN</label>
+                        <input type="date" id="main-checkin" onchange="renderRooms()" class="text-xl font-bold text-slate-700 outline-none border-b-2 border-slate-100 focus:border-sky-500 transition-colors bg-transparent">
+                    </div>
+                    <div class="w-px h-10 bg-slate-100 hidden md:block"></div>
+                    <div class="flex flex-col items-start px-4">
+                        <label class="text-xs font-black text-sky-400 mb-2 tracking-widest">退房 CHECK-OUT</label>
+                        <input type="date" id="main-checkout" onchange="renderRooms()" class="text-xl font-bold text-slate-700 outline-none border-b-2 border-slate-100 focus:border-sky-500 transition-colors bg-transparent">
+                    </div>
+                </div>
+            </header>
+
+            <div id="rooms-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10"></div>
+        </section>
+
+        <section id="view-orders" class="hidden">
+            <header class="mb-12">
+                <button onclick="showHome()" class="mb-6 text-slate-400 hover:text-sky-500 transition-colors font-bold"><i class="fas fa-arrow-left mr-2"></i>返回首頁</button>
+                <h2 class="text-4xl font-black text-slate-800">查詢您的訂單</h2>
+                <div class="flex gap-4 mt-8 max-w-lg">
+                    <input type="tel" id="query-phone" placeholder="輸入預訂時的手機號碼" class="flex-1 p-5 bg-white rounded-2xl shadow-sm border border-slate-200/50 focus:ring-2 focus:ring-sky-500 outline-none font-bold">
+                    <button onclick="fetchMyOrders()" class="px-10 bg-sky-500 text-white rounded-2xl font-bold hover:bg-sky-600 transition-colors shadow-lg shadow-sky-200">搜尋</button>
+                </div>
+            </header>
+            <div id="orders-list" class="space-y-6"></div>
+        </section>
+    </main>
+
+    <div id="booking-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] hidden items-center justify-center p-6">
+        <div class="bg-white w-full max-w-md rounded-[3.5rem] p-10 shadow-2xl">
+            <h3 id="booking-room-name" class="text-3xl font-black mb-2 text-slate-800"></h3>
+            <p id="modal-date-range" class="text-sky-500 font-bold mb-8"></p>
+            <form id="booking-form" class="space-y-5">
+                <input type="hidden" id="booking-room-id">
+                <input type="hidden" id="booking-room-price">
+                <input type="text" id="cust-name" placeholder="入住人姓名" required class="w-full p-5 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-sky-500 outline-none font-bold">
+                <input type="tel" id="cust-phone" placeholder="連絡電話" required class="w-full p-5 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-sky-500 outline-none font-bold">
+                <div class="bg-sky-50 p-6 rounded-[2rem]">
+                    <div class="flex justify-between text-slate-500 mb-2 font-bold"><span>入住晚數</span><span id="display-nights">0 晚</span></div>
+                    <div class="flex justify-between text-2xl font-black text-sky-600"><span>總計金額</span><span id="display-total">$0</span></div>
+                </div>
+                <div class="flex gap-4 pt-4">
+                    <button type="button" onclick="toggleModal('booking-modal', false)" class="flex-1 py-5 font-bold text-slate-400 hover:text-slate-600 transition-colors">取消</button>
+                    <button type="submit" class="flex-1 py-5 bg-sky-500 text-white rounded-2xl font-bold shadow-xl hover:bg-sky-600 transition-all">確認預訂</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] hidden items-center justify-center p-6">
+        <div class="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-sky-50 text-sky-500 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 text-3xl">
+                    <i class="fas fa-user-lock"></i>
+                </div>
+                <h3 class="text-2xl font-black text-slate-800">後台管理登入</h3>
+                <p class="text-slate-400 text-xs font-bold mt-2">預設帳號：admin / 密碼：1234</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <input type="text" id="admin-user" placeholder="帳號" required class="w-full p-5 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-sky-500 outline-none font-bold">
+                <input type="password" id="admin-pass" placeholder="密碼" required class="w-full p-5 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-sky-500 outline-none font-bold">
+                <button type="submit" class="w-full py-5 bg-slate-800 text-white rounded-2xl font-bold shadow-xl hover:bg-slate-700 transition-all mt-4">登入系統</button>
+                <button type="button" onclick="toggleModal('login-modal', false)" class="w-full py-2 text-slate-400 font-bold text-sm">取消返回</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed top-24 right-6 transition-all duration-500 z-[200] px-10 py-5 rounded-[1.5rem] shadow-2xl text-white font-bold opacity-0 translate-x-[150%]"></div>
+
+    <script>
+        const API_URL = window.location.origin + "/api";
+
+        function showHome() {
+            document.getElementById('view-home').classList.remove('hidden');
+            document.getElementById('view-orders').classList.add('hidden');
+        }
+
+        function showOrderQuery() {
+            document.getElementById('view-home').classList.add('hidden');
+            document.getElementById('view-orders').classList.remove('hidden');
+        }
+
+        function toggleModal(id, show) {
+            document.getElementById(id).style.display = show ? 'flex' : 'none';
+        }
+
+        async function renderRooms() {
+            const grid = document.getElementById('rooms-grid');
+            const cin = document.getElementById('main-checkin').value;
+            const cout = document.getElementById('main-checkout').value;
+            if (!cin || !cout) return;
+
+            try {
+                const res = await fetch(`${API_URL}/rooms/availability?checkIn=${cin}&checkOut=${cout}`);
+                const data = await res.json();
+
+                grid.innerHTML = data.map(room => {
+                    let statusLabel, btnText, btnDisabled, btnClass, cardOpacity;
+
+                    if (room.status === 'maintenance') {
+                        statusLabel = `<span class="bg-amber-500 text-white text-xs px-4 py-2 rounded-full font-black shadow-sm">🛠 維修中</span>`;
+                        btnText = '暫不開放';
+                        btnDisabled = 'disabled';
+                        btnClass = 'bg-slate-100 text-slate-400 cursor-not-allowed';
+                        cardOpacity = 'opacity-60 grayscale-[0.8]';
+                    } else if (room.isFull) {
+                        statusLabel = `<span class="bg-rose-500 text-white text-xs px-4 py-2 rounded-full font-black shadow-sm">已訂滿</span>`;
+                        btnText = '目前無空房';
+                        btnDisabled = 'disabled';
+                        btnClass = 'bg-slate-100 text-slate-400 cursor-not-allowed';
+                        cardOpacity = 'opacity-60 grayscale-[0.5]';
+                    } else {
+                        statusLabel = `<span class="bg-white/90 backdrop-blur-md text-emerald-600 text-xs px-4 py-2 rounded-full font-black shadow-sm">剩餘 ${room.remaining} 間</span>`;
+                        btnText = '立即預訂';
+                        btnDisabled = '';
+                        btnClass = 'bg-sky-500 text-white hover:bg-sky-600 hover:shadow-lg shadow-sky-100';
+                        cardOpacity = '';
+                    }
+
+                    return `
+                        <div class="cloud-card bg-white overflow-hidden border border-slate-200/50 shadow-sm flex flex-col ${cardOpacity}">
+                            <div class="relative h-56 overflow-hidden">
+                                <img src="${room.imageUrl || 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=800'}" 
+                                     class="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                                     alt="${room.name}">
+                                <div class="absolute top-4 right-4">${statusLabel}</div>
+                            </div>
+
+                            <div class="p-8 flex flex-col flex-grow">
+                                <div class="flex justify-between items-start mb-3">
+                                    <h3 class="text-2xl font-black text-slate-800">${room.name}</h3>
+                                    <div class="text-right">
+                                        <span class="text-sky-500 font-black text-2xl">$${room.price}</span>
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">每晚</p>
+                                    </div>
+                                </div>
+                                <p class="text-slate-400 text-sm mb-8 flex-grow line-clamp-2 font-medium leading-relaxed">
+                                    ${room.description || '精緻舒適的休憩空間，為您的旅程提供最溫暖的依靠。'}
+                                </p>
+                                
+                                <button ${btnDisabled} onclick="openBooking('${room.id}', '${room.name}', ${room.price})" 
+                                    class="w-full py-4 rounded-2xl font-black transition-all ${btnClass}">
+                                    ${btnText}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center"><p class="text-rose-500 font-bold">伺服器連線中，請稍後...</p></div>`;
+            }
+        }
+
+        function openBooking(id, name, price) {
+            const cinStr = document.getElementById('main-checkin').value;
+            const coutStr = document.getElementById('main-checkout').value;
+            const cin = new Date(cinStr);
+            const cout = new Date(coutStr);
+
+            if (cin >= cout) return showToast('退房日期必須晚於入住日期', 'error');
+
+            const nights = Math.ceil(Math.abs(cout - cin) / (1000 * 60 * 60 * 24));
+            document.getElementById('booking-room-id').value = id;
+            document.getElementById('booking-room-price').value = price;
+            document.getElementById('booking-room-name').innerText = name;
+            document.getElementById('modal-date-range').innerText = `${cinStr} 至 ${coutStr} (${nights} 晚)`;
+            document.getElementById('display-nights').innerText = `${nights} 晚`;
+            document.getElementById('display-total').innerText = `$${price * nights}`;
+            toggleModal('booking-modal', true);
+        }
+
+        document.getElementById('booking-form').onsubmit = async(e) => {
+            e.preventDefault();
+            const nights = parseInt(document.getElementById('display-nights').innerText);
+            const price = parseInt(document.getElementById('booking-room-price').value);
+
+            const data = {
+                roomId: document.getElementById('booking-room-id').value,
+                roomName: document.getElementById('booking-room-name').innerText,
+                checkIn: document.getElementById('main-checkin').value,
+                checkOut: document.getElementById('main-checkout').value,
+                customerName: document.getElementById('cust-name').value,
+                phone: document.getElementById('cust-phone').value,
+                nights: nights,
+                totalPrice: price * nights
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/booking`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showToast('預訂成功！ ');
+                    toggleModal('booking-modal', false);
+                    renderRooms();
+                } else {
+                    showToast(result.message || '預訂失敗', 'error');
+                }
+            } catch (err) {
+                showToast('系統錯誤', 'error');
+            }
+        };
+
+        document.getElementById('login-form').onsubmit = async(e) => {
+            e.preventDefault();
+            const username = document.getElementById('admin-user').value;
+            const password = document.getElementById('admin-pass').value;
+
+            try {
+                const res = await fetch(`${API_URL}/admin/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        password
+                    })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    localStorage.setItem('adminToken', result.token);
+                    showToast('登入成功');
+                    setTimeout(() => {
+                        window.location.href = 'admin.html';
+                    }, 1000);
+                } else {
+                    showToast('帳號或密碼錯誤', 'error');
+                }
+            } catch (err) {
+                showToast('伺服器連線失敗', 'error');
+            }
+        };
+
+        async function fetchMyOrders() {
+            const phone = document.getElementById('query-phone').value;
+            if (!phone) return showToast('請輸入電話號碼', 'error');
+
+            try {
+                const res = await fetch(`${API_URL}/orders/${phone}`);
+                const orders = await res.json();
+                const list = document.getElementById('orders-list');
+
+                if (orders.length === 0) {
+                    list.innerHTML = `<div class="bg-white p-12 text-center rounded-[2rem] text-slate-400 font-bold">找不到該手機號碼的預訂紀錄</div>`;
+                    return;
+                }
+
+                list.innerHTML = orders.map(o => `
+                    <div class="bg-white p-8 border border-slate-200/50 shadow-sm rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-6 transition-all hover:shadow-md">
+                        <div class="text-center md:text-left">
+                            <h4 class="font-black text-2xl text-slate-800">${o.roomName}</h4>
+                            <p class="text-sky-500 font-bold mt-1">${o.checkIn} — ${o.checkOut} <span class="text-slate-300 mx-2">|</span> ${o.nights} 晚</p>
+                            <p class="text-slate-400 text-xs mt-3 font-bold uppercase tracking-wider">訂房人：${o.customerName}</p>
+                        </div>
+                        <div class="flex flex-col items-center md:items-end gap-3">
+                            <div class="text-3xl font-black text-slate-800">$${o.totalPrice}</div>
+                            <button onclick="cancelOrder('${o.id}')" class="px-8 py-2.5 bg-rose-50 text-rose-500 rounded-xl font-bold hover:bg-rose-500 hover:text-white transition-all text-sm border border-rose-100">取消預訂</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                showToast('查詢失敗', 'error');
+            }
+        }
+
+        async function cancelOrder(id) {
+            const nameConfirm = prompt("安全確認：請輸入入住人姓名以取消預訂");
+            if (!nameConfirm) return;
+
+            try {
+                const res = await fetch(`${API_URL}/orders/cancel/${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customerName: nameConfirm
+                    })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showToast('已成功取消預訂');
+                    fetchMyOrders();
+                    renderRooms();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (err) {
+                showToast('操作失敗', 'error');
+            }
+        }
+
+        function showToast(msg, type = 'success') {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.className = `fixed top-24 right-6 transition-all duration-500 z-[200] px-10 py-5 rounded-[1.5rem] shadow-2xl text-white font-bold ${type==='success'?'bg-emerald-500':'bg-rose-500'}`;
+            t.style.opacity = '1';
+            t.style.transform = 'translateX(0)';
+            setTimeout(() => {
+                t.style.opacity = '0';
+                t.style.transform = 'translateX(150%)';
+            }, 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            const nextDay = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+            document.getElementById('main-checkin').value = today;
+            document.getElementById('main-checkout').value = nextDay;
+            renderRooms();
+        });
+    </script>
+</body>
+
+</html>
