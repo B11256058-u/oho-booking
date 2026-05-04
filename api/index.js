@@ -2,28 +2,41 @@ const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
 
-// 請確保此路徑正確，並放入你的 Firebase 私鑰檔案
-// --- 修改後的 Firebase 初始化部分 ---
-const firebaseConfig = process.env.FIREBASE_CONFIG ?
-    JSON.parse(process.env.FIREBASE_CONFIG) :
-    require("../serviceAccountKey.json"); // 如果本地有檔案就用檔案，沒有就用環境變數
-
-admin.initializeApp({
-    credential: admin.credential.cert(firebaseConfig)
-});
-// ---------------------------------
-
-const db = admin.firestore();
 const app = express();
 
+// ==========================================
+// Firebase 初始化
+// ==========================================
+// 優先讀 Vercel 環境變數 FIREBASE_CONFIG
+// 本地開發時，如果沒有環境變數，才改用 serviceAccountKey.json
+let firebaseConfig;
+
+if (process.env.FIREBASE_CONFIG) {
+    firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+} else {
+    firebaseConfig = require("../serviceAccountKey.json");
+}
+
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert(firebaseConfig)
+    });
+}
+
+const db = admin.firestore();
+
+// ==========================================
+// Middleware
+// ==========================================
 app.use(cors());
 app.use(express.json());
 
 // ==========================================
 // [1. 管理員驗證]
 // ==========================================
-app.post('/api/admin/login', (req, res) => {
+app.post('/admin/login', (req, res) => {
     const { username, password } = req.body;
+
     // 這裡可以根據需求改為讀取 DB 或環境變數
     if (username === 'admin' && password === '1234') {
         res.json({ success: true, token: 'hoho-admin-secure-token' });
@@ -35,7 +48,7 @@ app.post('/api/admin/login', (req, res) => {
 // ==========================================
 // [2. Dashboard 統計資料] - 供管理後台圖表使用
 // ==========================================
-app.get('/api/admin/dashboard', async(req, res) => {
+app.get('/admin/dashboard', async(req, res) => {
     try {
         const ordersSnapshot = await db.collection('orders').get();
 
@@ -77,8 +90,9 @@ app.get('/api/admin/dashboard', async(req, res) => {
 // ==========================================
 // [3. 房型可用性檢查] - 支援「日期區間維修」判定
 // ==========================================
-app.get('/api/rooms/availability', async(req, res) => {
+app.get('/rooms/availability', async(req, res) => {
     const { checkIn, checkOut } = req.query;
+
     if (!checkIn || !checkOut) {
         return res.status(400).json({ success: false, message: '請提供入住與退房日期' });
     }
@@ -122,6 +136,7 @@ app.get('/api/rooms/availability', async(req, res) => {
                         bookedCount++;
                     }
                 });
+
                 const maxQty = parseInt(roomData.quantity) || 1;
                 roomData.remaining = Math.max(0, maxQty - bookedCount);
                 roomData.isFull = bookedCount >= maxQty;
@@ -141,8 +156,9 @@ app.get('/api/rooms/availability', async(req, res) => {
 // ==========================================
 // [4. 線上訂房] - 加上維修日期檢測
 // ==========================================
-app.post('/api/booking', async(req, res) => {
+app.post('/booking', async(req, res) => {
     const { roomId, checkIn, checkOut, customerName, phone, totalPrice } = req.body;
+
     try {
         const roomDoc = await db.collection('rooms').doc(roomId).get();
         if (!roomDoc.exists) {
@@ -155,7 +171,8 @@ app.post('/api/booking', async(req, res) => {
         if (roomData.status === 'maintenance') {
             const mStart = roomData.maintenanceStart;
             const mEnd = roomData.maintenanceEnd;
-            if (!mStart || (checkIn < mEnd && checkOut > mStart)) {
+
+            if (!mStart || !mEnd || (checkIn < mEnd && checkOut > mStart)) {
                 return res.status(400).json({ success: false, message: '該房型於此時段維修中，請選擇其他日期。' });
             }
         }
@@ -201,7 +218,7 @@ app.post('/api/booking', async(req, res) => {
 // ==========================================
 
 // 取得所有房型
-app.get('/api/admin/rooms', async(req, res) => {
+app.get('/admin/rooms', async(req, res) => {
     try {
         const snapshot = await db.collection('rooms').get();
         const rooms = [];
@@ -213,7 +230,7 @@ app.get('/api/admin/rooms', async(req, res) => {
 });
 
 // 新增或更新房型
-app.post('/api/admin/rooms', async(req, res) => {
+app.post('/admin/rooms', async(req, res) => {
     const {
         id,
         name,
@@ -254,7 +271,7 @@ app.post('/api/admin/rooms', async(req, res) => {
 });
 
 // 刪除房型
-app.delete('/api/admin/rooms/:id', async(req, res) => {
+app.delete('/admin/rooms/:id', async(req, res) => {
     try {
         await db.collection('rooms').doc(req.params.id).delete();
         res.json({ success: true });
@@ -268,7 +285,7 @@ app.delete('/api/admin/rooms/:id', async(req, res) => {
 // ==========================================
 
 // 使用者根據手機查詢訂單
-app.get('/api/orders/:phone', async(req, res) => {
+app.get('/orders/:phone', async(req, res) => {
     try {
         const snapshot = await db.collection('orders').where('phone', '==', req.params.phone).get();
         const orders = [];
@@ -282,7 +299,7 @@ app.get('/api/orders/:phone', async(req, res) => {
 });
 
 // 管理員取得所有訂單 (依建立時間排序)
-app.get('/api/admin/orders', async(req, res) => {
+app.get('/admin/orders', async(req, res) => {
     try {
         const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').get();
         const orders = [];
@@ -297,7 +314,7 @@ app.get('/api/admin/orders', async(req, res) => {
 });
 
 // 刪除/取消訂單
-app.post('/api/orders/cancel/:id', async(req, res) => {
+app.post('/orders/cancel/:id', async(req, res) => {
     try {
         await db.collection('orders').doc(req.params.id).delete();
         res.json({ success: true });
@@ -307,9 +324,6 @@ app.post('/api/orders/cancel/:id', async(req, res) => {
 });
 
 // ==========================================
-// 啟動伺服器
+// 匯出給 Vercel
 // ==========================================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`✅ HOHO Hotel Server is running on http://localhost:${PORT}`);
-});
+module.exports = app;
