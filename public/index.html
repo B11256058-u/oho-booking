@@ -287,7 +287,6 @@
                 showToast('伺服器連線失敗', 'error');
             }
         };
-
         async function fetchMyOrders() {
             const phone = document.getElementById('query-phone').value;
             if (!phone) return showToast('請輸入電話號碼', 'error');
@@ -302,24 +301,28 @@
                     return;
                 }
 
-                list.innerHTML = orders.map(o => `
-                    <div class="bg-white p-8 border border-slate-200/50 shadow-sm rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-6 transition-all hover:shadow-md">
-                        <div class="text-center md:text-left">
-                            <h4 class="font-black text-2xl text-slate-800">${o.roomName}</h4>
-                            <p class="text-sky-500 font-bold mt-1">${o.checkIn} — ${o.checkOut} <span class="text-slate-300 mx-2">|</span> ${o.nights} 晚</p>
-                            <p class="text-slate-400 text-xs mt-3 font-bold uppercase tracking-wider">訂房人：${o.customerName}</p>
-                        </div>
-                        <div class="flex flex-col items-center md:items-end gap-3">
-                            <div class="text-3xl font-black text-slate-800">$${o.totalPrice}</div>
-                            <button onclick="cancelOrder('${o.id}')" class="px-8 py-2.5 bg-rose-50 text-rose-500 rounded-xl font-bold hover:bg-rose-500 hover:text-white transition-all text-sm border border-rose-100">取消預訂</button>
-                        </div>
+                list.innerHTML = orders.map(o => {
+                    // 如果後端沒傳 nights，就用 checkIn 和 checkOut 算出來
+                    const nights = o.nights || Math.ceil(Math.abs(new Date(o.checkOut) - new Date(o.checkIn)) / (1000 * 60 * 60 * 24));
+
+                    return `
+                <div class="bg-white p-8 border border-slate-200/50 shadow-sm rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-6 transition-all hover:shadow-md">
+                    <div class="text-center md:text-left">
+                        <h4 class="font-black text-2xl text-slate-800">${o.roomName}</h4>
+                        <p class="text-sky-500 font-bold mt-1">${o.checkIn} — ${o.checkOut} <span class="text-slate-300 mx-2">|</span> ${nights} 晚</p>
+                        <p class="text-slate-400 text-xs mt-3 font-bold uppercase tracking-wider">訂房人：${o.customerName}</p>
                     </div>
-                `).join('');
+                    <div class="flex flex-col items-center md:items-end gap-3">
+                        <div class="text-3xl font-black text-slate-800">$${o.totalPrice}</div>
+                        <button onclick="cancelOrder('${o.id}')" class="px-8 py-2.5 bg-rose-50 text-rose-500 rounded-xl font-bold hover:bg-rose-500 hover:text-white transition-all text-sm border border-rose-100">取消預訂</button>
+                    </div>
+                </div>
+            `;
+                }).join('');
             } catch (err) {
                 showToast('查詢失敗', 'error');
             }
         }
-
         async function cancelOrder(id) {
             const nameConfirm = prompt("安全確認：請輸入入住人姓名以取消預訂");
             if (!nameConfirm) return;
