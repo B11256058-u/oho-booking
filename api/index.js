@@ -4,6 +4,10 @@ const cors = require('cors');
 
 const app = express();
 
+// 讓同一組路由同時支援：
+// /admin/xxx 和 /api/admin/xxx
+const withApi = (path) => [path, `/api${path}`];
+
 // ==========================================
 // Firebase 初始化
 // ==========================================
@@ -14,7 +18,7 @@ let firebaseConfig;
 if (process.env.FIREBASE_CONFIG) {
     firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
 } else {
-    firebaseConfig = require("../serviceAccountKey.json");
+    firebaseConfig = require("./serviceAccountKey.json");
 }
 
 if (!admin.apps.length) {
@@ -34,7 +38,7 @@ app.use(express.json());
 // ==========================================
 // [1. 管理員驗證]
 // ==========================================
-app.post('/admin/login', (req, res) => {
+app.post(withApi('/admin/login'), (req, res) => {
     const { username, password } = req.body;
 
     // 這裡可以根據需求改為讀取 DB 或環境變數
@@ -48,7 +52,7 @@ app.post('/admin/login', (req, res) => {
 // ==========================================
 // [2. Dashboard 統計資料] - 供管理後台圖表使用
 // ==========================================
-app.get('/admin/dashboard', async(req, res) => {
+app.get(withApi('/admin/dashboard'), async(req, res) => {
     try {
         const ordersSnapshot = await db.collection('orders').get();
 
@@ -90,7 +94,7 @@ app.get('/admin/dashboard', async(req, res) => {
 // ==========================================
 // [3. 房型可用性檢查] - 支援「日期區間維修」判定
 // ==========================================
-app.get('/rooms/availability', async(req, res) => {
+app.get(withApi('/rooms/availability'), async(req, res) => {
     const { checkIn, checkOut } = req.query;
 
     if (!checkIn || !checkOut) {
@@ -132,7 +136,7 @@ app.get('/rooms/availability', async(req, res) => {
                 ordersSnapshot.forEach(orderDoc => {
                     const order = orderDoc.data();
                     // 判斷該房型在該時段是否已有重疊的訂單
-                    if (order.roomId === doc.id && checkIn < order.checkOut && checkOut > order.inDate) {
+                    if (order.roomId === doc.id && checkIn < order.checkOut && checkOut > order.checkIn) {
                         bookedCount++;
                     }
                 });
@@ -156,7 +160,7 @@ app.get('/rooms/availability', async(req, res) => {
 // ==========================================
 // [4. 線上訂房] - 加上維修日期檢測
 // ==========================================
-app.post('/booking', async(req, res) => {
+app.post(withApi('/booking'), async(req, res) => {
     const { roomId, checkIn, checkOut, customerName, phone, totalPrice } = req.body;
 
     try {
@@ -218,7 +222,7 @@ app.post('/booking', async(req, res) => {
 // ==========================================
 
 // 取得所有房型
-app.get('/admin/rooms', async(req, res) => {
+app.get(withApi('/admin/rooms'), async(req, res) => {
     try {
         const snapshot = await db.collection('rooms').get();
         const rooms = [];
@@ -230,7 +234,7 @@ app.get('/admin/rooms', async(req, res) => {
 });
 
 // 新增或更新房型
-app.post('/admin/rooms', async(req, res) => {
+app.post(withApi('/admin/rooms'), async(req, res) => {
     const {
         id,
         name,
@@ -271,7 +275,7 @@ app.post('/admin/rooms', async(req, res) => {
 });
 
 // 刪除房型
-app.delete('/admin/rooms/:id', async(req, res) => {
+app.delete(withApi('/admin/rooms/:id'), async(req, res) => {
     try {
         await db.collection('rooms').doc(req.params.id).delete();
         res.json({ success: true });
@@ -285,7 +289,7 @@ app.delete('/admin/rooms/:id', async(req, res) => {
 // ==========================================
 
 // 使用者根據手機查詢訂單
-app.get('/orders/:phone', async(req, res) => {
+app.get(withApi('/orders/:phone'), async(req, res) => {
     try {
         const snapshot = await db.collection('orders').where('phone', '==', req.params.phone).get();
         const orders = [];
@@ -299,7 +303,7 @@ app.get('/orders/:phone', async(req, res) => {
 });
 
 // 管理員取得所有訂單 (依建立時間排序)
-app.get('/admin/orders', async(req, res) => {
+app.get(withApi('/admin/orders'), async(req, res) => {
     try {
         const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').get();
         const orders = [];
@@ -314,7 +318,7 @@ app.get('/admin/orders', async(req, res) => {
 });
 
 // 刪除/取消訂單
-app.post('/orders/cancel/:id', async(req, res) => {
+app.post(withApi('/orders/cancel/:id'), async(req, res) => {
     try {
         await db.collection('orders').doc(req.params.id).delete();
         res.json({ success: true });
