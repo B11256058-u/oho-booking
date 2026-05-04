@@ -3,11 +3,15 @@ const admin = require('firebase-admin');
 const cors = require('cors');
 
 // 請確保此路徑正確，並放入你的 Firebase 私鑰檔案
-const serviceAccount = require("../serviceAccountKey.json");
+// --- 修改後的 Firebase 初始化部分 ---
+const firebaseConfig = process.env.FIREBASE_CONFIG ?
+    JSON.parse(process.env.FIREBASE_CONFIG) :
+    require("../serviceAccountKey.json"); // 如果本地有檔案就用檔案，沒有就用環境變數
 
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(firebaseConfig)
 });
+// ---------------------------------
 
 const db = admin.firestore();
 const app = express();
