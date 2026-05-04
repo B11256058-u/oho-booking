@@ -2,17 +2,25 @@ const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
 
-const serviceAccount = require("./serviceAccountKey.json");
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
+// 請確保此路徑正確，並放入你的 Firebase 私鑰檔案
+const serviceAccount = require("../serviceAccountKey.json");
 
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+const db = admin.firestore();
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-// [管理員登入]
+// ==========================================
+// [1. 管理員驗證]
+// ==========================================
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
+    // 這裡可以根據需求改為讀取 DB 或環境變數
     if (username === 'admin' && password === '1234') {
         res.json({ success: true, token: 'hoho-admin-secure-token' });
     } else {
@@ -20,7 +28,9 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
-// [Dashboard 統計資料]
+// ==========================================
+// [2. Dashboard 統計資料] - 供管理後台圖表使用
+// ==========================================
 app.get('/api/admin/dashboard', async(req, res) => {
     try {
         const ordersSnapshot = await db.collection('orders').get();
@@ -31,6 +41,7 @@ app.get('/api/admin/dashboard', async(req, res) => {
         ordersSnapshot.forEach(doc => {
             const order = doc.data();
 
+            // 必須有建立日期才能統計
             if (!order.createdAt) return;
 
             const date = new Date(order.createdAt);
@@ -38,10 +49,13 @@ app.get('/api/admin/dashboard', async(req, res) => {
 
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
+            // 累加訂單數
             monthlyOrders[monthKey] = (monthlyOrders[monthKey] || 0) + 1;
+            // 累加營收 (確保 totalPrice 為數字)
             monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + (parseInt(order.totalPrice) || 0);
         });
 
+        // 取得所有月份標籤並排序
         const labels = Object.keys(monthlyOrders).sort();
 
         res.json({
@@ -56,9 +70,15 @@ app.get('/api/admin/dashboard', async(req, res) => {
     }
 });
 
-// [房型可用性檢查] - 支援「日期區間維修」判定
+// ==========================================
+// [3. 房型可用性檢查] - 支援「日期區間維修」判定
+// ==========================================
 app.get('/api/rooms/availability', async(req, res) => {
     const { checkIn, checkOut } = req.query;
+    if (!checkIn || !checkOut) {
+        return res.status(400).json({ success: false, message: '請提供入住與退房日期' });
+    }
+
     try {
         const roomsSnapshot = await db.collection('rooms').get();
         const ordersSnapshot = await db.collection('orders').get();
@@ -93,12 +113,13 @@ app.get('/api/rooms/availability', async(req, res) => {
                 let bookedCount = 0;
                 ordersSnapshot.forEach(orderDoc => {
                     const order = orderDoc.data();
-                    if (order.roomId === doc.id && checkIn < order.checkOut && checkOut > order.checkIn) {
+                    // 判斷該房型在該時段是否已有重疊的訂單
+                    if (order.roomId === doc.id && checkIn < order.checkOut && checkOut > order.inDate) {
                         bookedCount++;
                     }
                 });
-                const maxQty = roomData.quantity || 1;
-                roomData.remaining = maxQty - bookedCount;
+                const maxQty = parseInt(roomData.quantity) || 1;
+                roomData.remaining = Math.max(0, maxQty - bookedCount);
                 roomData.isFull = bookedCount >= maxQty;
                 roomData.status = 'available';
             }
@@ -108,23 +129,25 @@ app.get('/api/rooms/availability', async(req, res) => {
 
         res.json(rooms);
     } catch (error) {
-        console.error(error);
+        console.error('Availability check error:', error);
         res.status(500).json({ success: false });
     }
 });
 
-// [線上訂房] - 加上維修日期檢測 (防止有人跳過前端直接打 API)
+// ==========================================
+// [4. 線上訂房] - 加上維修日期檢測
+// ==========================================
 app.post('/api/booking', async(req, res) => {
-    const { roomId, checkIn, checkOut } = req.body;
+    const { roomId, checkIn, checkOut, customerName, phone, totalPrice } = req.body;
     try {
         const roomDoc = await db.collection('rooms').doc(roomId).get();
-        const roomData = roomDoc.data();
-
         if (!roomDoc.exists) {
             return res.status(404).json({ success: false, message: '找不到該房型' });
         }
 
-        // 再次檢查維修衝突
+        const roomData = roomDoc.data();
+
+        // 再次檢查維修衝突 (防止繞過前端)
         if (roomData.status === 'maintenance') {
             const mStart = roomData.maintenanceStart;
             const mEnd = roomData.maintenanceEnd;
@@ -133,41 +156,59 @@ app.post('/api/booking', async(req, res) => {
             }
         }
 
-        const maxQty = roomData.quantity || 1;
+        // 檢查剩餘數量
+        const maxQty = parseInt(roomData.quantity) || 1;
         const ordersSnapshot = await db.collection('orders').where('roomId', '==', roomId).get();
         let bookedCount = 0;
 
         ordersSnapshot.forEach(doc => {
             const order = doc.data();
-            if (checkIn < order.checkOut && checkOut > order.checkIn) bookedCount++;
+            if (checkIn < order.checkOut && checkOut > order.checkIn) {
+                bookedCount++;
+            }
         });
 
         if (bookedCount >= maxQty) {
             return res.status(400).json({ success: false, message: '很抱歉，該時段已訂滿。' });
         }
 
+        // 寫入訂單
         await db.collection('orders').add({
-            ...req.body,
+            roomId,
+            roomName: roomData.name,
+            checkIn,
+            checkOut,
+            customerName,
+            phone,
+            totalPrice,
             status: 'confirmed',
             createdAt: new Date().toISOString()
         });
 
         res.json({ success: true });
     } catch (error) {
-        console.error(error);
+        console.error('Booking error:', error);
         res.status(500).json({ success: false });
     }
 });
 
-// [管理員取得房型]
+// ==========================================
+// [5. 管理員：房型 CRUD]
+// ==========================================
+
+// 取得所有房型
 app.get('/api/admin/rooms', async(req, res) => {
-    const snapshot = await db.collection('rooms').get();
-    const rooms = [];
-    snapshot.forEach(doc => rooms.push({ id: doc.id, ...doc.data() }));
-    res.json(rooms);
+    try {
+        const snapshot = await db.collection('rooms').get();
+        const rooms = [];
+        snapshot.forEach(doc => rooms.push({ id: doc.id, ...doc.data() }));
+        res.json(rooms);
+    } catch (error) {
+        res.status(500).send(error.message);
+    }
 });
 
-// [新增/修改房型] - 支援日期區間
+// 新增或更新房型
 app.post('/api/admin/rooms', async(req, res) => {
     const {
         id,
@@ -189,51 +230,82 @@ app.post('/api/admin/rooms', async(req, res) => {
         imageUrl,
         status: status || 'available',
         maintenanceStart: maintenanceStart || null,
-        maintenanceEnd: maintenanceEnd || null
+        maintenanceEnd: maintenanceEnd || null,
+        updatedAt: new Date().toISOString()
     };
 
     try {
         if (id) {
+            // 更新
             await db.collection('rooms').doc(id).update(roomInfo);
         } else {
+            // 新增
             await db.collection('rooms').add(roomInfo);
         }
         res.json({ success: true });
     } catch (error) {
-        console.error(error);
+        console.error('Save room error:', error);
         res.status(500).json({ success: false });
     }
 });
 
-// --- 其他 API (查詢、刪除) ---
-
-app.get('/api/orders/:phone', async(req, res) => {
-    const snapshot = await db.collection('orders').where('phone', '==', req.params.phone).get();
-    const orders = [];
-    snapshot.forEach(doc => {
-        orders.push({ id: doc.id, ...doc.data() });
-    });
-    res.json(orders);
-});
-
-app.get('/api/admin/orders', async(req, res) => {
-    const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').get();
-    const orders = [];
-    snapshot.forEach(doc => {
-        orders.push({ id: doc.id, ...doc.data() });
-    });
-    res.json(orders);
-});
-
-app.post('/api/orders/cancel/:id', async(req, res) => {
-    await db.collection('orders').doc(req.params.id).delete();
-    res.json({ success: true });
-});
-
+// 刪除房型
 app.delete('/api/admin/rooms/:id', async(req, res) => {
-    await db.collection('rooms').doc(req.params.id).delete();
-    res.json({ success: true });
+    try {
+        await db.collection('rooms').doc(req.params.id).delete();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false });
+    }
 });
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`✅ Server is running on http://localhost:${PORT}`));
+// ==========================================
+// [6. 管理員/使用者：訂單查詢與刪除]
+// ==========================================
+
+// 使用者根據手機查詢訂單
+app.get('/api/orders/:phone', async(req, res) => {
+    try {
+        const snapshot = await db.collection('orders').where('phone', '==', req.params.phone).get();
+        const orders = [];
+        snapshot.forEach(doc => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        res.json(orders);
+    } catch (error) {
+        res.status(500).send(error.message);
+    }
+});
+
+// 管理員取得所有訂單 (依建立時間排序)
+app.get('/api/admin/orders', async(req, res) => {
+    try {
+        const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').get();
+        const orders = [];
+        snapshot.forEach(doc => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        res.json(orders);
+    } catch (error) {
+        console.error('Fetch orders error:', error);
+        res.status(500).send(error.message);
+    }
+});
+
+// 刪除/取消訂單
+app.post('/api/orders/cancel/:id', async(req, res) => {
+    try {
+        await db.collection('orders').doc(req.params.id).delete();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false });
+    }
+});
+
+// ==========================================
+// 啟動伺服器
+// ==========================================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`✅ HOHO Hotel Server is running on http://localhost:${PORT}`);
+});

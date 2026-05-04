@@ -92,21 +92,21 @@
 <body class="bg-slate-100">
 
     <div class="max-w-6xl mx-auto relative z-10 p-4">
-        <header class="flex justify-between items-end mb-10 px-6 py-6 glass-card rounded-[2rem]">
-            <div class="flex flex-col items-start">
+        <header class="flex flex-col md:flex-row justify-between items-center md:items-end mb-10 px-6 py-6 glass-card rounded-[2rem] gap-6">
+            <div class="flex flex-col items-center md:items-start">
                 <h1 class="text-4xl font-black text-slate-800 leading-tight">管理員後台</h1>
                 <p class="text-sky-500 font-black tracking-[0.2em] text-xs mt-2 uppercase opacity-90">
                     <i class="fas fa-chart-line mr-2"></i>View All Bookings / 檢視所有訂房紀錄
                 </p>
 
                 <div class="flex gap-4 mt-6">
-                    <button id="tab-dashboard" onclick="switchTab('dashboard')" class="px-8 py-2.5 rounded-2xl font-bold transition-all duration-300 bg-white/70 text-slate-400 hover:bg-sky-50 border border-white/40">
+                    <button id="tab-dashboard" onclick="switchTab('dashboard')" class="px-8 py-2.5 rounded-2xl font-bold transition-all duration-300">
                         儀表板
                     </button>
-                    <button id="tab-orders" onclick="switchTab('orders')" class="bg-white/70 text-slate-400 px-8 py-2.5 rounded-2xl font-bold hover:bg-sky-50 transition-all duration-300 border border-white/40">
+                    <button id="tab-orders" onclick="switchTab('orders')" class="px-8 py-2.5 rounded-2xl font-bold transition-all duration-300">
                         訂單管理
                     </button>
-                    <button id="tab-rooms" onclick="switchTab('rooms')" class="bg-white/70 text-slate-400 px-8 py-2.5 rounded-2xl font-bold hover:bg-sky-50 transition-all duration-300 border border-white/40">
+                    <button id="tab-rooms" onclick="switchTab('rooms')" class="px-8 py-2.5 rounded-2xl font-bold transition-all duration-300">
                         房型管理
                     </button>
                 </div>
@@ -117,6 +117,7 @@
             </button>
         </header>
 
+        <!-- Dashboard Section -->
         <div id="section-dashboard" class="hidden fade-up">
             <div class="grid md:grid-cols-3 gap-6 mb-8">
                 <div class="glass-card rounded-[2rem] p-6">
@@ -145,6 +146,7 @@
             </div>
         </div>
 
+        <!-- Orders Section -->
         <div id="section-orders" class="hidden glass-card rounded-[2.5rem] overflow-hidden fade-up">
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -168,6 +170,7 @@
             </div>
         </div>
 
+        <!-- Rooms Section -->
         <div id="section-rooms" class="hidden fade-up">
             <div class="flex justify-between items-center mb-8 px-4">
                 <p class="text-slate-500 font-bold">目前架上房型：<span id="room-count" class="text-sky-500 font-black">0</span> 間</p>
@@ -180,6 +183,7 @@
         </div>
     </div>
 
+    <!-- Room Modal -->
     <div id="room-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-xl rounded-[3rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh] border border-white/20">
 
@@ -322,13 +326,14 @@
                 const orderValues = orderLabels.map(k => monthlyOrderMap[k]);
 
                 if (ordersChart) ordersChart.destroy();
-                ordersChart = new Chart(document.getElementById('ordersChart'), {
+                const ctxOrders = document.getElementById('ordersChart').getContext('2d');
+                ordersChart = new Chart(ctxOrders, {
                     type: 'line',
                     data: {
-                        labels: orderLabels,
+                        labels: orderLabels.length ? orderLabels : ['無資料'],
                         datasets: [{
                             label: '訂單數量',
-                            data: orderValues,
+                            data: orderValues.length ? orderValues : [0],
                             borderColor: '#0ea5e9',
                             backgroundColor: 'rgba(14, 165, 233, 0.12)',
                             tension: 0.35,
@@ -360,13 +365,14 @@
                 const revenueValues = revenueLabels.map(k => monthlyRevenueMap[k]);
 
                 if (revenueChart) revenueChart.destroy();
-                revenueChart = new Chart(document.getElementById('revenueChart'), {
+                const ctxRevenue = document.getElementById('revenueChart').getContext('2d');
+                revenueChart = new Chart(ctxRevenue, {
                     type: 'bar',
                     data: {
-                        labels: revenueLabels,
+                        labels: revenueLabels.length ? revenueLabels : ['無資料'],
                         datasets: [{
                             label: '營收 ($)',
-                            data: revenueValues,
+                            data: revenueValues.length ? revenueValues : [0],
                             backgroundColor: 'rgba(56, 189, 248, 0.6)',
                             borderColor: '#0ea5e9',
                             borderWidth: 1,
@@ -390,7 +396,7 @@
                 const list = document.getElementById('admin-orders-list');
                 const noOrders = document.getElementById('no-orders');
 
-                if (orders.length === 0) {
+                if (!orders || orders.length === 0) {
                     list.innerHTML = "";
                     noOrders.classList.remove('hidden');
                     return;
@@ -454,6 +460,9 @@
                         statusTag = `<span class="bg-amber-100 text-amber-600 text-[10px] px-2 py-0.5 rounded-md font-black border border-amber-200">🛠 維修: ${r.maintenanceStart || ''}~${r.maintenanceEnd || ''}</span>`;
                     }
 
+                    // 將物件轉換為 Base64 以避免 HTML 屬性報錯
+                    const roomData = btoa(encodeURIComponent(JSON.stringify(r)));
+
                     return `
                         <div class="bg-white/80 backdrop-blur-xl p-6 rounded-[2.5rem] shadow-sm border border-white/40 flex gap-6 items-center hover:shadow-xl hover:shadow-sky-200/40 transition-all group">
                             <div class="relative overflow-hidden rounded-[2rem] w-32 h-32 shrink-0">
@@ -471,7 +480,7 @@
                                 </div>
                             </div>
                             <div class="flex flex-col gap-2">
-                                <button onclick='editRoom(${JSON.stringify(r)})' class="w-10 h-10 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-500 hover:text-white transition-all flex items-center justify-center border border-sky-100">
+                                <button onclick="handleEditRoom('${roomData}')" class="w-10 h-10 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-500 hover:text-white transition-all flex items-center justify-center border border-sky-100">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button onclick="deleteRoom('${r.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-rose-100">
@@ -499,6 +508,12 @@
             document.getElementById('room-qty').value = "";
             document.getElementById('room-image').value = "";
             document.getElementById('room-modal').classList.remove('hidden');
+        }
+
+        // 處理 Base64 編碼過的房型資料
+        function handleEditRoom(base64Data) {
+            const r = JSON.parse(decodeURIComponent(atob(base64Data)));
+            editRoom(r);
         }
 
         function editRoom(r) {
@@ -564,7 +579,9 @@
         }
 
         // 初始化頁面
-        switchTab('dashboard');
+        document.addEventListener('DOMContentLoaded', () => {
+            switchTab('dashboard');
+        });
     </script>
 </body>
 
